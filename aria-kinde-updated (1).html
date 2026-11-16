@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#141518">
+  <title>ARIA — мессенджер</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-darkest:#141518; --bg-servers:#1a1b1f; --bg-sidebar:#222429;
+      --bg-main:#2b2d33; --bg-card:#34373f; --bg-input:#383b44;
+      --accent:#7477ff; --accent-hover:#5d60e8; --green:#10b981;
+      --red:#ef4444; --amber:#f59e0b; --text-main:#f3f4f6;
+      --text-muted:#a1a1aa; --border:rgba(255,255,255,.08);
+      --shadow:0 18px 55px rgba(0,0,0,.35);
+    }
+    body.theme-midnight {
+      --bg-darkest:#090a0f; --bg-servers:#0f111a; --bg-sidebar:#161925;
+      --bg-main:#1d2130; --bg-card:#262b3d; --bg-input:#2b3145; --accent:#9b78ff;
+    }
+    * { box-sizing:border-box; }
+    html,body { width:100%; height:100%; margin:0; }
+    body {
+      display:flex; overflow:hidden; background:var(--bg-darkest); color:var(--text-main);
+      font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    }
+    button,input { font:inherit; }
+    button { color:inherit; }
+    button:focus-visible,input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .servers {
+      width:66px; flex:none; display:flex; flex-direction:column; align-items:center;
+      gap:10px; padding:14px 0; background:var(--bg-servers); border-right:1px solid var(--border);
+      z-index:5;
+    }
+    .brand {
+      width:44px;height:44px;border-radius:15px;display:grid;place-items:center;
+      background:linear-gradient(135deg,#8b5cf6,#ec4899);font-size:19px;font-weight:900;
+      box-shadow:0 6px 22px #8b5cf633;margin-bottom:4px;
+    }
+    .srv-btn {
+      width:44px;height:44px;border:0;border-radius:50%;background:var(--bg-card);
+      cursor:pointer;font-weight:750;transition:.18s ease;
+    }
+    .srv-btn:hover,.srv-btn.active { border-radius:14px;background:var(--accent); }
+    .srv-btn.add { color:var(--green);background:#10b98120;font-size:22px; }
+    .divider { width:28px;height:2px;background:var(--border); }
+    .sidebar {
+      width:245px;flex:none;background:var(--bg-sidebar);border-right:1px solid var(--border);
+      display:flex;flex-direction:column;min-height:0;
+    }
+    .srv-header,.topbar {
+      height:56px;flex:none;padding:0 15px;display:flex;align-items:center;
+      justify-content:space-between;border-bottom:1px solid var(--border);
+    }
+    .srv-header { font-size:15px;font-weight:750; }
+    .icon-btn {
+      width:34px;height:34px;border:0;border-radius:9px;background:transparent;
+      color:var(--text-muted);cursor:pointer;font-size:18px;
+    }
+    .icon-btn:hover { background:#ffffff12;color:white; }
+    .channels-scroll { flex:1;overflow:auto;padding:12px 9px; }
+    .cat-row {
+      display:flex;align-items:center;justify-content:space-between;padding:10px 8px 6px;
+      color:var(--text-muted);font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+    }
+    .ch-item {
+      width:100%;display:flex;align-items:center;gap:9px;padding:9px 10px;margin:2px 0;
+      border:0;border-radius:8px;background:transparent;color:var(--text-muted);
+      text-align:left;cursor:pointer;
+    }
+    .ch-item:hover { background:#ffffff0b;color:white; }
+    .ch-item.active { background:#7477ff2b;color:white;font-weight:650; }
+    .ch-icon { width:18px;text-align:center;color:#858997; }
+    .user-dock {
+      min-height:64px;padding:9px 11px;background:#00000018;border-top:1px solid var(--border);
+      display:flex;align-items:center;justify-content:space-between;gap:8px;
+    }
+    .user-left { display:flex;align-items:center;gap:9px;min-width:0; }
+    .avatar {
+      width:36px;height:36px;flex:none;border-radius:50%;display:grid;place-items:center;
+      background:linear-gradient(135deg,#6366f1,#a855f7);font-weight:800;
+    }
+    .user-info { min-width:0; }
+    .user-name { font-weight:700;white-space:nowrap; }
+    .user-status { color:var(--green);font-size:11px; }
+    .user-actions { display:flex; }
+    .main { flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg-main); }
+    .topbar { gap:10px; }
+    .topbar-left { display:flex;align-items:center;gap:10px;font-weight:750;min-width:0; }
+    .topbar-title { white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+    .topbar-right { display:flex;align-items:center;gap:4px; }
+    .mobile-menu-btn { display:none; }
+    .chat-box { flex:1;min-height:0;display:flex;flex-direction:column; }
+    .messages {
+      flex:1;min-height:0;overflow:auto;padding:22px clamp(14px,3vw,30px);
+      display:flex;flex-direction:column;gap:17px;
+    }
+    .welcome {
+      margin:auto auto 12px;max-width:520px;text-align:center;color:var(--text-muted);
+    }
+    .welcome-mark {
+      width:58px;height:58px;border-radius:20px;margin:0 auto 12px;display:grid;place-items:center;
+      background:linear-gradient(135deg,#7778ff,#bd65e8);font-size:26px;font-weight:900;color:white;
+    }
+    .welcome h2 { margin:0 0 6px;color:var(--text-main);font-size:21px; }
+    .welcome p { margin:0; }
+    .msg { display:flex;align-items:flex-start;gap:11px; }
+    .msg .avatar { width:38px;height:38px;font-size:13px; }
+    .msg-content { min-width:0;max-width:min(780px,88%); }
+    .msg-head { display:flex;align-items:baseline;gap:8px;flex-wrap:wrap; }
+    .msg-author { font-weight:700; }
+    .msg-time { font-size:11px;color:var(--text-muted); }
+    .msg-text { margin-top:3px;color:#e5e7eb;white-space:pre-wrap;overflow-wrap:anywhere; }
+    .msg-tools { display:flex;gap:4px;margin-top:5px;opacity:0;transition:opacity .15s; }
+    .msg:hover .msg-tools,.msg:focus-within .msg-tools { opacity:1; }
+    .tiny-btn { border:0;background:transparent;color:var(--text-muted);cursor:pointer;padding:3px 6px;border-radius:5px;font-size:11px; }
+    .tiny-btn:hover { background:#ffffff12;color:white; }
+    .chat-input-area { padding:10px clamp(12px,3vw,28px) max(14px,env(safe-area-inset-bottom)); }
+    .input-bar {
+      display:flex;align-items:center;gap:8px;padding:5px 7px 5px 13px;
+      background:var(--bg-input);border:1px solid var(--border);border-radius:13px;
+    }
+    .input-bar input {
+      flex:1;min-width:0;padding:10px 2px;border:0;outline:0;background:transparent;color:white;
+    }
+    .input-bar input::placeholder { color:#a1a1aa; }
+    .primary-btn {
+      flex:none;padding:9px 15px;border:0;border-radius:9px;background:var(--accent);
+      color:white;font-weight:700;cursor:pointer;transition:background .15s;
+    }
+    .primary-btn:hover { background:var(--accent-hover); }
+    .primary-btn:disabled { opacity:.5;cursor:not-allowed; }
+    .call-dock { display:none;padding:10px;background:#181a1f;border-top:1px solid var(--border); }
+    .call-dock.active { display:block; }
+    .call-meta { display:flex;justify-content:space-between;gap:8px;color:var(--green);font-size:12px;font-weight:700;margin-bottom:8px; }
+    .call-actions { display:grid;grid-template-columns:repeat(4,1fr);gap:6px; }
+    .act-btn { padding:8px 4px;border:0;border-radius:7px;background:var(--bg-card);cursor:pointer; }
+    .act-btn.on { background:var(--accent); }
+    .act-btn.hangup { background:var(--red); }
+    .notice {
+      position:fixed;left:50%;bottom:22px;transform:translate(-50%,15px);opacity:0;
+      background:#111318;border:1px solid var(--border);padding:10px 15px;border-radius:10px;
+      box-shadow:var(--shadow);z-index:50;pointer-events:none;transition:.2s;
+    }
+    .notice.show { opacity:1;transform:translate(-50%,0); }
+    .modal-backdrop {
+      position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+      padding:16px;background:#000b;z-index:20;
+    }
+    .modal-backdrop.open { display:flex; }
+    .modal {
+      width:min(460px,100%);max-height:85vh;overflow:auto;background:var(--bg-sidebar);
+      border:1px solid var(--border);border-radius:15px;box-shadow:var(--shadow);
+    }
+    .modal-head { display:flex;justify-content:space-between;align-items:center;padding:15px 18px;border-bottom:1px solid var(--border);font-weight:800; }
+    .modal-body { display:flex;flex-direction:column;gap:14px;padding:18px; }
+    .setting-group { display:flex;flex-direction:column;gap:7px; }
+    .setting-group label { color:var(--text-muted);font-size:11px;font-weight:800;text-transform:uppercase; }
+    .setting-group input,.setting-group select {
+      width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-input);color:white;
+    }
+    .setting-row { display:flex;justify-content:space-between;align-items:center;gap:10px; }
+    .setting-row input { accent-color:var(--accent); }
+    .empty-state { margin:auto;color:var(--text-muted);text-align:center; }
+    .category-title { display:flex;align-items:center;justify-content:space-between;padding:13px 8px 5px;color:var(--text-muted);font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase; }
+    .category-title button { border:0;background:transparent;color:var(--text-muted);cursor:pointer;font-size:16px; }
+    .server-settings { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+    .server-settings button,.secondary-btn { border:1px solid var(--border);border-radius:8px;background:var(--bg-card);padding:9px;cursor:pointer;text-align:left; }
+    .server-settings button:hover,.secondary-btn:hover { border-color:var(--accent); }
+    .member-row { display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border); }
+    .member-row .avatar { width:32px;height:32px; }
+    .member-row small { color:var(--text-muted);display:block; }
+    .channel-tools { margin-left:auto;color:var(--text-muted);font-size:11px; }
+    .msg-actions { display:flex;gap:5px;flex-wrap:wrap;margin-top:6px; }
+    .pill-btn { border:1px solid var(--border);background:var(--bg-card);border-radius:14px;padding:3px 8px;font-size:11px;cursor:pointer; }
+    .pill-btn:hover { border-color:var(--accent); }
+    @media(max-width:760px) {
+      .servers { width:54px;padding-top:10px;gap:8px; }
+      .srv-btn,.brand { width:38px;height:38px; }
+      .sidebar {
+        position:fixed;top:0;bottom:0;left:54px;width:min(275px,calc(100vw - 54px));
+        transform:translateX(-110%);transition:transform .22s ease;z-index:10;box-shadow:var(--shadow);
+      }
+      body.sidebar-open .sidebar { transform:translateX(0); }
+      .mobile-menu-btn { display:inline-grid;place-items:center; }
+      .topbar { height:54px;padding:0 9px; }
+      .messages { padding:16px 12px; }
+      .msg-content { max-width:calc(100vw - 115px); }
+      .msg-tools { opacity:1; }
+      .primary-btn { padding:9px 11px; }
+    }
+    @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important;scroll-behavior:auto!important; } }
+  </style>
+
+<style id="aria-premium-overrides">
+:root{--bg-darkest:#090b12;--bg-servers:#0d1019;--bg-sidebar:#121725;--bg-main:#101522;--bg-card:#1b2334;--bg-input:#1a2232;--accent:#8b72ff;--accent-hover:#a18cff;--border:rgba(174,184,220,.13);--shadow:0 24px 80px #0009}
+body{background:radial-gradient(ellipse at 75% 0%,#30215b55,transparent 38%),var(--bg-darkest);letter-spacing:.01em}
+.servers{background:rgba(10,13,22,.96);border-right-color:var(--border);gap:13px}
+.brand{width:48px;height:48px;border-radius:17px;background:linear-gradient(145deg,#9d70ff,#e45dbd);box-shadow:0 8px 28px #9d70ff55}
+.srv-btn{background:#1a2130;border:1px solid #ffffff08;transition:.22s}
+.srv-btn:hover,.srv-btn.active{background:linear-gradient(145deg,#8b72ff,#b65be5);box-shadow:0 8px 24px #8b72ff44}
+.sidebar{background:rgba(17,23,37,.97);border-right-color:var(--border)}
+.srv-header,.topbar{height:64px;border-bottom-color:var(--border);backdrop-filter:blur(18px)}
+.srv-header{font-size:16px}
+.main{background:linear-gradient(145deg,#111827,#0e1421 55%,#151327)}
+.topbar{background:#111827a8}
+.icon-btn{border-radius:11px}
+.icon-btn:hover{background:#8b72ff20;color:#cfc5ff}
+.ch-item{padding:11px 12px;border-radius:11px;margin:3px 0}
+.ch-item.active{background:linear-gradient(90deg,#8b72ff30,#8b72ff0b);box-shadow:inset 3px 0 #9b80ff;color:#fff}
+.category-title{padding-top:18px}
+.user-dock{background:#0d1320;border-top-color:var(--border);padding:12px}
+.avatar{background:linear-gradient(145deg,#8b72ff,#d45fc9);box-shadow:0 5px 18px #8b72ff25}
+.welcome{max-width:600px;padding:30px 20px;border:1px solid #ffffff0b;border-radius:28px;background:linear-gradient(145deg,#ffffff08,#ffffff02);box-shadow:0 25px 90px #0002}
+.welcome-mark{width:82px;height:82px;border-radius:27px;font-size:36px;box-shadow:0 14px 35px #8b72ff44}
+.welcome h2{font-size:clamp(23px,4vw,32px);letter-spacing:-.04em}
+.welcome p{font-size:15px}
+.messages{padding:clamp(16px,3vw,34px)}
+.input-bar{padding:7px 8px 7px 16px;border-radius:20px;background:#1b2435;border:1px solid #ffffff12;box-shadow:0 12px 35px #0003}
+.input-bar input{padding:13px 4px}
+.primary-btn{padding:12px 19px;border-radius:13px;background:linear-gradient(135deg,#7968ff,#a65de8);box-shadow:0 7px 22px #8b72ff35}
+.primary-btn:hover{background:linear-gradient(135deg,#8b7bff,#bb70f2)}
+.modal{border-radius:22px;background:#151d2d;border-color:#ffffff16}
+.modal-head{padding:18px 20px}
+.modal-body{padding:20px}
+.setting-group input,.setting-group select{border-radius:12px;padding:12px;background:#101827}
+.call-dock{background:#111827}
+@media(max-width:650px){.servers{width:58px}.brand,.srv-btn{width:40px;height:40px}.sidebar{width:min(275px,calc(100vw - 58px));left:58px}.welcome{padding:25px 12px;margin-bottom:18px}.welcome-mark{width:72px;height:72px}.chat-input-area{padding:10px 12px max(14px,env(safe-area-inset-bottom))}}
+/* Authentication */
+#ariaAuth{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;padding:22px;background:radial-gradient(ellipse at 20% 15%,#8b5cf633,transparent 38%),radial-gradient(ellipse at 90% 85%,#d946ef22,transparent 35%),#090b12;overflow:auto}
+#ariaAuth.visible{display:flex}
+.auth-shell{width:min(980px,100%);min-height:570px;display:grid;grid-template-columns:1.02fr .98fr;border:1px solid #ffffff18;border-radius:30px;overflow:hidden;background:#111827ed;box-shadow:0 35px 120px #0009;backdrop-filter:blur(24px)}
+.auth-art{position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:42px;background:linear-gradient(145deg,#33215f,#171c38 60%,#281943);overflow:hidden}
+.auth-art:before,.auth-art:after{content:"";position:absolute;border-radius:50%;filter:blur(2px);pointer-events:none}
+.auth-art:before{width:300px;height:300px;background:#9b72ff35;right:-90px;top:-70px}
+.auth-art:after{width:240px;height:240px;background:#e65cbd22;left:-100px;bottom:-90px}
+.auth-brand,.auth-pitch,.auth-foot{position:relative;z-index:1}
+.auth-brand{display:flex;align-items:center;gap:13px;font-size:20px;font-weight:900;letter-spacing:.12em}
+.auth-brand-mark{width:48px;height:48px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(145deg,#9b72ff,#e35dbd);font-size:25px;box-shadow:0 12px 30px #a16bff55}
+.auth-pitch h1{font-size:clamp(34px,5vw,54px);line-height:1.04;letter-spacing:-.055em;margin:0 0 18px}
+.auth-pitch p{color:#c3bfd7;font-size:15px;line-height:1.7;max-width:360px}
+.auth-pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:24px}
+.auth-pills span{border:1px solid #ffffff20;background:#ffffff0c;padding:8px 12px;border-radius:30px;color:#e4ddff;font-size:12px}
+.auth-foot{color:#aaa5c2;font-size:11px}
+.auth-form-side{padding:42px;display:flex;flex-direction:column;justify-content:center}
+.auth-form-side h2{font-size:29px;letter-spacing:-.04em;margin:0 0 7px}
+.auth-sub{color:#9ca3b8;margin:0 0 25px;font-size:14px}
+.auth-tabs{display:grid;grid-template-columns:1fr 1fr;padding:4px;border-radius:13px;background:#0b1220;margin-bottom:22px}
+.auth-tabs button{border:0;border-radius:10px;padding:11px;background:transparent;color:#929bb0;font-weight:750;cursor:pointer}
+.auth-tabs button.active{background:#272345;color:#fff;box-shadow:inset 0 0 0 1px #a58aff35}
+.auth-field{display:flex;flex-direction:column;gap:7px;margin:13px 0}
+.auth-field label{font-size:12px;color:#b4bbce;font-weight:700}
+.auth-field input{width:100%;padding:14px 15px;border:1px solid #ffffff16;border-radius:13px;background:#0c1422;color:#fff;outline:0}
+.auth-field input:focus{border-color:#9b80ff;box-shadow:0 0 0 3px #9b80ff22}
+.auth-submit{width:100%;margin-top:10px;padding:14px;border:0;border-radius:13px;background:linear-gradient(135deg,#7968ff,#b65de8);color:#fff;font-weight:850;font-size:15px;cursor:pointer;box-shadow:0 10px 28px #8b72ff35}
+.auth-submit:disabled{opacity:.6}
+.auth-error{min-height:18px;color:#ff8f9c;font-size:12px;margin-top:10px}
+.auth-note{font-size:11px;line-height:1.5;color:#777f95;margin-top:16px}
+#ariaLogout{font-size:11px!important;width:29px!important;height:29px!important}
+@media(max-width:720px){.auth-shell{grid-template-columns:1fr;max-width:460px;min-height:0}.auth-art{padding:23px 25px 20px;min-height:185px}.auth-pitch h1{font-size:30px;margin:20px 0 8px}.auth-pitch p{font-size:12px;margin:0}.auth-pills,.auth-foot{display:none}.auth-form-side{padding:27px 25px 30px}.auth-form-side h2{font-size:25px}#ariaAuth{padding:14px}}
+
+#kindeAuthMount{min-height:270px}
+#kindeAuthMount{min-height:270px}
+.auth-loading,.auth-setup{padding:18px;border:1px solid #ffffff14;border-radius:14px;background:#ffffff06;color:#cbd0df;font-size:13px;line-height:1.6}
+.auth-setup strong{color:#fff;font-size:15px}
+.auth-setup p{margin:8px 0 0}
+#ariaLogout{display:inline-grid;place-items:center}
+</style>
+
+
+<style id="aria-device-and-cosmetics">
+/* Responsive refinements for phones, tablets, laptops and touch screens */
+html { -webkit-text-size-adjust:100%; }
+button, input, select, textarea { touch-action:manipulation; }
+@media (hover:none) {
+  .msg-tools { opacity:1; }
+  .srv-btn, .ch-item, .icon-btn, .feature-btn { min-height:38px; }
+}
+@media (max-width:760px) {
+  .chat-box { min-height:0; }
+  .messages { overscroll-behavior:contain; }
+  .input-bar { position:relative; }
+  .profile-form-grid { grid-template-columns:1fr; }
+  .profile-form-grid .full { grid-column:auto; }
+}
+@media (min-width:761px) and (max-width:1100px) {
+  .sidebar { width:230px; }
+  .servers { width:64px; }
+}
+@media (max-height:520px) and (orientation:landscape) {
+  .auth-shell { min-height:0; }
+  .auth-art { padding:18px 24px; }
+  .auth-pitch h1 { font-size:28px; }
+  .auth-pills, .auth-foot { display:none; }
+  .modal { max-height:92dvh; }
+}
+/* Profile frames */
+.avatar.frame-neon { outline:2px solid #a78bfa; outline-offset:2px; box-shadow:0 0 0 5px #a78bfa30,0 0 22px #a78bfa88; }
+.avatar.frame-gold { outline:3px solid #f5c451; outline-offset:2px; box-shadow:0 0 0 5px #f5c45125; }
+.avatar.frame-rose { outline:3px solid #fb7185; outline-offset:2px; box-shadow:0 0 0 5px #fb718530; }
+.avatar.frame-rainbow { border:3px solid transparent; background-origin:border-box!important; background-clip:padding-box,border-box!important; box-shadow:0 0 0 2px #8b72ff,0 0 18px #c084fc88; }
+.cosmetic-gallery { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px; }
+.cosmetic-choice { min-width:0;border:1px solid var(--border);border-radius:12px;padding:9px 4px;background:#ffffff08;color:var(--text-main);cursor:pointer;text-align:center;font-size:12px; }
+.cosmetic-choice[aria-pressed="true"] { border-color:var(--accent);background:#8b72ff25; }
+.cosmetic-swatch { width:38px;height:38px;margin:0 auto 6px;border-radius:50%;display:grid;place-items:center;font-size:19px; }
+</style>
+
+</head>
+<body>
+
+<div id="ariaAuth" class="visible" role="dialog" aria-modal="true" aria-label="Вход в ARIA">
+  <div class="auth-shell">
+    <section class="auth-art">
+      <div class="auth-brand"><span class="auth-brand-mark">A</span><span>ARIA</span></div>
+      <div class="auth-pitch">
+        <h1>Твое место.<br>Твои люди.</h1>
+        <p>Общайся, создавай сообщества и собирай друзей в одном пространстве.</p>
+        <div class="auth-pills"><span>✦ Свои серверы</span><span>⌁ Каналы</span><span>◉ Сообщества</span></div>
+      </div>
+      <div class="auth-foot">ARIA COMMUNITY · YOUR SPACE TO CONNECT</div>
+    </section>
+    <section class="auth-form-side">
+      <h2 id="authHeading">С возвращением!</h2>
+      <p class="auth-sub" id="authSubtitle">Войди, чтобы продолжить общение.</p>
+      <div class="auth-tabs"><button type="button" class="active" id="authLoginTab">Войти</button><button type="button" id="authRegisterTab">Создать аккаунт</button></div>
+      <div id="kindeAuthMount" aria-live="polite"><div class="auth-loading">Подключаем Kinde…</div></div>
+      <div class="auth-error" id="authError" aria-live="polite"></div>
+      <div class="auth-note">Вход и регистрация проходят через защищённую страницу Kinde.</div>
+    </section>
+  </div>
+</div>
+
+  <nav class="servers" aria-label="Серверы">
+    <div class="brand" title="ARIA">A</div>
+    <div id="serverList" style="display:contents"></div>
+    <div class="divider"></div>
+    <button class="srv-btn add" id="addServer" aria-label="Создать сервер" title="Создать сервер">+</button>
+  </nav>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="srv-header"><span id="serverName">Мой сервер</span><button class="icon-btn" id="serverMenu" aria-label="Настройки сервера">⌄</button></div>
+    <div class="channels-scroll" id="channelsList"></div>
+    <div class="call-dock" id="callDock">
+      <div class="call-meta"><span>● Голосовой канал</span><span id="callTimer">00:00</span></div>
+      <div class="call-actions">
+        <button class="act-btn on" id="micBtn" title="Микрофон">🎙</button>
+        <button class="act-btn on" id="soundBtn" title="Звук">🔊</button>
+        <button class="act-btn" id="shareBtn" title="Демонстрация экрана">▣</button>
+        <button class="act-btn hangup" id="hangupBtn" title="Завершить">☎</button>
+      </div>
+    </div>
+    <div class="user-dock">
+      <div class="user-left"><div class="avatar" id="myAvatar">A</div><div class="user-info"><div class="user-name" id="myName">ARIA User</div><div class="user-status">● В сети</div></div></div>
+      <div class="user-actions"><button class="icon-btn" id="profileBtn" title="Профиль">✎</button><button class="icon-btn" id="settingsBtn" title="Настройки">⚙</button></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="icon-btn mobile-menu-btn" id="mobileMenu" aria-label="Открыть меню">☰</button>
+        <span class="ch-icon">#</span><span class="topbar-title" id="channelTitle">общий</span>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="searchBtn" title="Поиск по сообщениям" aria-label="Поиск">⌕</button>
+        <button class="icon-btn" id="membersBtn" title="Участники и роли" aria-label="Участники">♙</button>
+        <button class="icon-btn" id="callBtn" title="Начать демонстрационный звонок" aria-label="Звонок">☎</button>
+        <button class="icon-btn" id="themeBtn" title="Сменить тему" aria-label="Сменить тему">◐</button>
+      </div>
+    </header>
+    <section class="chat-box">
+      <div class="messages" id="messages" aria-live="polite">
+        <div class="welcome" id="welcome">
+          <div class="welcome-mark">A</div><h2>Добро пожаловать в ARIA</h2>
+          <p>Это начало канала. Напиши первое сообщение!</p>
+        </div>
+      </div>
+      <form class="chat-input-area" id="messageForm">
+        <div class="input-bar">
+          <input id="messageInput" type="text" maxlength="2000" autocomplete="off" placeholder="Написать в #общий…" aria-label="Текст сообщения">
+          <button class="primary-btn" type="submit">Отправить</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modal-head"><span id="modalTitle">Настройки</span><button class="icon-btn" id="closeModal" aria-label="Закрыть">✕</button></div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+  <div class="notice" id="notice" role="status"></div>
+
+  <script>
+    (() => {
+      "use strict";
+      const $ = s => document.querySelector(s);
+      const KEY = "aria-messenger-v2";
+      const makeId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+      const state = {
+        name:"ARIA User", theme:"default", activeServerId:"local-home",
+        servers:[{id:"local-home",name:"Мой сервер",icon:"A",channels:[{id:"general",name:"общий",type:"text",category:"ТЕКСТОВЫЕ КАНАЛЫ"},{id:"introductions",name:"знакомства",type:"text",category:"ТЕКСТОВЫЕ КАНАЛЫ"},{id:"memes",name:"мемы",type:"text",category:"ТЕКСТОВЫЕ КАНАЛЫ"},{id:"voice",name:"Голосовой",type:"voice",category:"ГОЛОСОВЫЕ КАНАЛЫ"}],roles:[{name:"Владелец",color:"#f59e0b",permissions:["all"]},{name:"Модератор",color:"#60a5fa",permissions:["manage_messages","manage_channels"]},{name:"Участник",color:"#a1a1aa",permissions:["send_messages"]}],members:[{name:"ARIA User",role:"Владелец",status:"В сети"}],inviteCode:"ARIA-LOCAL"}],
+        messages:{}, currentChannelId:"general", callStarted:null, mic:true, sound:true
+      };
+      let noticeTimer, callTimer;
+      const activeServer = () => state.servers.find(s => s.id === state.activeServerId) || state.servers[0];
+      const activeChannel = () => activeServer()?.channels.find(c => c.id === state.currentChannelId) || activeServer()?.channels[0];
+      const messageKey = () => `${state.activeServerId}:${state.currentChannelId}`;
+      function notify(text) { const n=$("#notice"); n.textContent=text; n.classList.add("show"); clearTimeout(noticeTimer); noticeTimer=setTimeout(()=>n.classList.remove("show"),2400); }
+      function save() { try { localStorage.setItem(KEY,JSON.stringify(state)); } catch(e) { notify("Не удалось сохранить данные в браузере"); } }
+      function load() {
+        try {
+          const d=JSON.parse(localStorage.getItem(KEY)||"null");
+          if (!d || typeof d!=="object") return;
+          if (typeof d.name==="string") state.name=d.name.slice(0,32);
+          if (d.theme==="midnight") state.theme="midnight";
+          if (Array.isArray(d.servers)&&d.servers.length) state.servers=d.servers;
+          if (d.messages&&typeof d.messages==="object") state.messages=d.messages;
+          if (typeof d.activeServerId==="string") state.activeServerId=d.activeServerId;
+          if (typeof d.currentChannelId==="string") state.currentChannelId=d.currentChannelId;
+        } catch(e) { console.warn("ARIA: сохранённые данные не прочитаны",e); }
+        if (!state.servers.some(s => s.id === state.activeServerId)) state.activeServerId=state.servers[0].id;
+        if (!activeChannel()) state.currentChannelId=activeServer().channels[0]?.id;
+      }
+      function initials(name) { return name.trim().split(/\s+/).slice(0,2).map(x=>x[0]||"").join("").toUpperCase()||"A"; }
+      function escapeHTML(v) { return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+      function messages() { const k=messageKey(); if(!Array.isArray(state.messages[k])) state.messages[k]=[]; return state.messages[k]; }
+      function renderServers() {
+        const root=$("#serverList"); root.replaceChildren();
+        state.servers.forEach(server=>{
+          const b=document.createElement("button"); b.className="srv-btn"+(server.id===state.activeServerId?" active":"");
+          b.textContent=(server.icon||initials(server.name)).slice(0,2); b.title=server.name; b.setAttribute("aria-label",server.name);
+          b.addEventListener("click",()=>switchServer(server.id)); root.append(b);
+        });
+      }
+      function renderChannels() {
+        const root=$("#channelsList"); root.replaceChildren();
+        const server=activeServer();
+        const top=document.createElement("div"); top.className="category-title"; top.innerHTML='<span>КАНАЛЫ</span><button type="button" id="newCategory" title="Создать категорию">＋</button>'; root.append(top);
+        const groups=[...new Set(server.channels.map(c=>c.category||"ТЕКСТОВЫЕ КАНАЛЫ"))];
+        groups.forEach(group=>{
+          const head=document.createElement("div"); head.className="category-title"; head.textContent=group; root.append(head);
+          server.channels.filter(c=>(c.category||"ТЕКСТОВЫЕ КАНАЛЫ")==group).forEach(ch=>{
+            const b=document.createElement("button"); b.className="ch-item"+(ch.id===state.currentChannelId?" active":""); b.dataset.channel=ch.id;
+            const icon=document.createElement("span"); icon.className="ch-icon"; icon.textContent=ch.type==="voice"?"◖))":"#";
+            b.append(icon,document.createTextNode(ch.name)); b.addEventListener("click",()=>{
+              if(ch.type==="voice"){startDemoCall();notify(`Демо-комната «${ch.name}»`);return;} selectChannel(ch.id);
+            }); root.append(b);
+          });
+        });
+        const actions=document.createElement("div"); actions.className="server-settings"; actions.style.margin="14px 5px";
+        actions.innerHTML='<button id="newTextChannel">＋ Текстовый</button><button id="newVoiceChannel">＋ Голосовой</button>';
+        root.append(actions);
+        $("#newCategory").addEventListener("click",createCategory);
+        $("#newTextChannel").addEventListener("click",()=>createChannel("text"));
+        $("#newVoiceChannel").addEventListener("click",()=>createChannel("voice"));
+        $("#serverName").textContent=server.name;
+      }
+      function switchServer(id) { state.activeServerId=id; const s=activeServer(); state.currentChannelId=s.channels[0]?.id||""; renderServers();renderChannels();renderMessages(); save(); document.body.classList.remove("sidebar-open"); }
+      function selectChannel(id) { state.currentChannelId=id; const ch=activeChannel(); $("#channelTitle").textContent=ch?.name||"канал"; $("#messageInput").placeholder=`Написать в #${ch?.name||"канал"}…`; renderChannels();renderMessages();save();document.body.classList.remove("sidebar-open"); }
+      function renderMessages() {
+        const root=$("#messages"); root.replaceChildren(); const list=messages();
+        if(!list.length){ const w=document.createElement("div");w.className="welcome";w.innerHTML='<div class="welcome-mark">A</div><h2>Добро пожаловать в ARIA</h2><p>Начни разговор в этом канале.</p>';root.append(w);return; }
+        list.forEach(m=>{
+          const article=document.createElement("article");article.className="msg";
+          const avatar=document.createElement("div");avatar.className="avatar";avatar.textContent=initials(m.author);
+          const content=document.createElement("div");content.className="msg-content";
+          const head=document.createElement("div");head.className="msg-head";
+          const author=document.createElement("span");author.className="msg-author";author.textContent=m.author;
+          const time=document.createElement("time");time.className="msg-time";time.textContent=m.time;
+          head.append(author,time);const body=document.createElement("div");body.className="msg-text";body.textContent=m.text;content.append(head,body);
+          const actions=document.createElement("div");actions.className="msg-actions";
+          const react=document.createElement("button");react.className="pill-btn";react.textContent=`♥ ${m.likes||0}`;react.addEventListener("click",()=>{m.likes=(m.likes||0)+1;save();renderMessages();});actions.append(react);
+          const reply=document.createElement("button");reply.className="pill-btn";reply.textContent="↩ Ответить";reply.addEventListener("click",()=>{const v=prompt("Ответ на сообщение:");if(v?.trim())sendMessage(`↪ ${m.author}: ${m.text.slice(0,80)}\n${v.trim()}`);});actions.append(reply);
+          if(m.author===state.name){const edit=document.createElement("button");edit.className="pill-btn";edit.textContent="Изменить";edit.addEventListener("click",()=>{const v=prompt("Изменить сообщение",m.text);if(v?.trim()){m.text=v.trim().slice(0,2000);save();renderMessages();}});const del=document.createElement("button");del.className="pill-btn";del.textContent="Удалить";del.addEventListener("click",()=>{if(confirm("Удалить сообщение?")){const i=messages().findIndex(x=>x.id===m.id);if(i>=0)messages().splice(i,1);save();renderMessages();}});actions.append(edit,del);}
+          content.append(actions);article.append(avatar,content);root.append(article);
+        });root.scrollTop=root.scrollHeight;
+      }
+      function sendMessage(text) { const value=text.trim();if(!value)return;messages().push({id:makeId(),author:state.name,text:value.slice(0,2000),time:new Intl.DateTimeFormat("ru-RU",{hour:"2-digit",minute:"2-digit"}).format(new Date()),likes:0});save();renderMessages(); }
+      function modal(title,html,bind) { $("#modalTitle").textContent=title;const body=$("#modalBody");body.innerHTML=html;if(bind)bind(body);$("#modalBackdrop").classList.add("open");$("#closeModal").focus(); }
+      function createServer() {
+        const name=prompt("Название нового сервера:");if(name===null)return;const clean=name.trim().slice(0,32);if(!clean){notify("Введи название сервера");return;}
+        const id=makeId();const server={id,name:clean,icon:initials(clean),channels:[{id:makeId(),name:"общий",type:"text",category:"ТЕКСТОВЫЕ КАНАЛЫ"},{id:makeId(),name:"Голосовой",type:"voice",category:"ГОЛОСОВЫЕ КАНАЛЫ"}],roles:[{name:"Владелец",color:"#f59e0b",permissions:["all"]},{name:"Модератор",color:"#60a5fa",permissions:["manage_messages","manage_channels"]},{name:"Участник",color:"#a1a1aa",permissions:["send_messages"]}],members:[{name:state.name,role:"Владелец",status:"В сети"}],inviteCode:Math.random().toString(36).slice(2,10).toUpperCase()};
+        state.servers.push(server);save();switchServer(id);notify("Сервер создан");
+      }
+      function createCategory() { const name=prompt("Название категории:");if(!name?.trim())return;const group=name.trim().toUpperCase().slice(0,30);if(activeServer().channels.some(c=>c.category===group)){notify("Такая категория уже есть");return;}activeServer().channels.push({id:makeId(),name:"новый-канал",type:"text",category:group});save();renderChannels();notify("Категория создана с каналом"); }
+      function createChannel(type) { const name=prompt(type==="voice"?"Название голосового канала":"Название текстового канала");if(!name?.trim())return;const clean=name.trim().toLowerCase().replace(/\s+/g,"-").replace(/[^\p{L}\p{N}_-]/gu,"").slice(0,30);if(!clean)return;const category=type==="voice"?"ГОЛОСОВЫЕ КАНАЛЫ":"ТЕКСТОВЫЕ КАНАЛЫ";const ch={id:makeId(),name:clean,type,category};activeServer().channels.push(ch);save();renderChannels();if(type==="text")selectChannel(ch.id);notify("Канал создан"); }
+      function serverSettings() {
+        modal("Настройки сервера",`<div class="setting-group"><label>Управление сервером</label><div class="server-settings"><button id="renameServer">✎ Переименовать</button><button id="inviteServer">↗ Пригласить</button><button id="manageRoles">♙ Роли и права</button><button id="manageMembers">♧ Участники</button><button id="deleteServer" style="color:#f87171">⌫ Удалить сервер</button></div></div><p style="color:var(--text-muted);font-size:12px;margin:0">Это локальный прототип: серверы сохраняются в этом браузере и пока не доступны другим людям.</p>`,body=>{
+          body.querySelector("#renameServer").onclick=()=>{const v=prompt("Новое название:",activeServer().name);if(v?.trim()){activeServer().name=v.trim().slice(0,32);save();renderServers();renderChannels();$("#modalBackdrop").classList.remove("open");}};
+          body.querySelector("#inviteServer").onclick=async()=>{const link=`aria://invite/${activeServer().inviteCode}`;try{await navigator.clipboard.writeText(link);notify("Локальный код приглашения скопирован");}catch{prompt("Код приглашения (пока не подключён к сети):",activeServer().inviteCode);}};
+          body.querySelector("#manageRoles").onclick=rolesModal;body.querySelector("#manageMembers").onclick=membersModal;
+          body.querySelector("#deleteServer").onclick=()=>{if(state.servers.length===1){notify("Нельзя удалить последний сервер");return;}if(confirm(`Удалить сервер «${activeServer().name}»?`)){state.servers=state.servers.filter(s=>s.id!==state.activeServerId);$("#modalBackdrop").classList.remove("open");switchServer(state.servers[0].id);notify("Сервер удалён");}};
+        });
+      }
+      function rolesModal() { const roles=activeServer().roles||[];modal("Роли и права",`<div id="rolesList"></div><button class="primary-btn" id="addRole">＋ Создать роль</button><p style="color:var(--text-muted);font-size:12px">Роли пока демонстрационные: реальная проверка прав требует серверной авторизации.</p>`,body=>{const list=body.querySelector("#rolesList");roles.forEach((r,i)=>{const row=document.createElement("div");row.className="member-row";row.innerHTML=`<span style="color:${escapeHTML(r.color||"#aaa")};font-weight:700">● ${escapeHTML(r.name)}</span><small>${escapeHTML((r.permissions||[]).join(", "))}</small>`;const del=document.createElement("button");del.className="icon-btn";del.textContent="×";del.onclick=()=>{if(i===0){notify("Роль владельца нельзя удалить");return;}roles.splice(i,1);save();rolesModal();};row.append(del);list.append(row);});body.querySelector("#addRole").onclick=()=>{const name=prompt("Название роли:");if(!name?.trim())return;roles.push({name:name.trim().slice(0,24),color:"#8b5cf6",permissions:["send_messages"]});save();rolesModal();};}); }
+      function membersModal() { const members=activeServer().members||[];modal("Участники сервера",`<div id="membersList"></div><button class="primary-btn" id="addDemoMember">＋ Добавить демо-участника</button><p style="color:var(--text-muted);font-size:12px">В реальном приложении участники появятся после регистрации и входа по приглашению.</p>`,body=>{const list=body.querySelector("#membersList");members.forEach(m=>{const row=document.createElement("div");row.className="member-row";const av=document.createElement("div");av.className="avatar";av.textContent=initials(m.name);const info=document.createElement("div");info.innerHTML=`${escapeHTML(m.name)}<small>${escapeHTML(m.role)} · ${escapeHTML(m.status||"Не в сети")}</small>`;row.append(av,info);list.append(row);});body.querySelector("#addDemoMember").onclick=()=>{const name=prompt("Имя демонстрационного участника:");if(name?.trim()){members.push({name:name.trim().slice(0,32),role:"Участник",status:"Не в сети"});save();membersModal();}};}); }
+      function profileModal() {modal("Профиль",`<div class="setting-group"><label for="profileName">Имя пользователя</label><input id="profileName" maxlength="32" value="${escapeHTML(state.name)}"></div><button class="primary-btn" id="saveProfile">Сохранить</button>`,body=>{body.querySelector("#saveProfile").onclick=()=>{const v=body.querySelector("#profileName").value.trim();if(!v){notify("Имя не может быть пустым");return;}state.name=v;$("#myName").textContent=v;$("#myAvatar").textContent=initials(v);const m=activeServer().members.find(x=>x.role==="Владелец");if(m)m.name=v;save();$("#modalBackdrop").classList.remove("open");};});}
+      function settingsModal() {modal("Настройки ARIA",`<div class="setting-group"><label for="themeSelect">Оформление</label><select id="themeSelect"><option value="default">Тёмная тема</option><option value="midnight">Полночь</option></select></div><p style="color:var(--text-muted);font-size:12px">Локальные сообщения и настройки сохраняются в этом браузере.</p>`,body=>{const sel=body.querySelector("#themeSelect");sel.value=state.theme;sel.onchange=()=>setTheme(sel.value);});}
+      function setTheme(v) {state.theme=v==="midnight"?"midnight":"default";document.body.classList.toggle("theme-midnight",state.theme==="midnight");save();}
+      function startDemoCall() {if(state.callStarted){notify("Демо-звонок уже активен");return;}state.callStarted=Date.now();$("#callDock").classList.add("active");callTimer=setInterval(()=>{const n=Math.floor((Date.now()-state.callStarted)/1000);$("#callTimer").textContent=`${String(Math.floor(n/60)).padStart(2,"0")}:${String(n%60).padStart(2,"0")}`;},1000);notify("Открыт демонстрационный режим звонка");}
+      function endDemoCall() {state.callStarted=null;clearInterval(callTimer);$("#callDock").classList.remove("active");$("#callTimer").textContent="00:00";}
+      window.ariaSetDisplayName = name => { if(typeof name==="string" && name.trim()){ state.name=name.trim().slice(0,32); save(); } };
+      load();$("#myName").textContent=state.name;$("#myAvatar").textContent=initials(state.name);setTheme(state.theme);renderServers();renderChannels();selectChannel(state.currentChannelId||activeServer().channels[0].id);
+      $("#messageForm").addEventListener("submit",e=>{e.preventDefault();sendMessage($("#messageInput").value);$("#messageInput").value="";$("#messageInput").focus();});
+      $("#addServer").addEventListener("click",createServer);$("#serverMenu").addEventListener("click",serverSettings);$("#settingsBtn").addEventListener("click",settingsModal);$("#profileBtn").addEventListener("click",profileModal);
+      $("#closeModal").addEventListener("click",()=>$("#modalBackdrop").classList.remove("open"));$("#modalBackdrop").addEventListener("click",e=>{if(e.target===$("#modalBackdrop"))$("#modalBackdrop").classList.remove("open");});
+      $("#mobileMenu").addEventListener("click",()=>document.body.classList.toggle("sidebar-open"));$("#themeBtn").addEventListener("click",()=>setTheme(state.theme==="midnight"?"default":"midnight"));
+      $("#membersBtn").addEventListener("click",membersModal);$("#callBtn").addEventListener("click",startDemoCall);$("#hangupBtn").addEventListener("click",endDemoCall);
+      $("#micBtn").addEventListener("click",()=>{state.mic=!state.mic;$("#micBtn").classList.toggle("on",state.mic);$("#micBtn").textContent=state.mic?"🎙":"🔇";notify(state.mic?"Микрофон включён в демо":"Микрофон выключен в демо");});
+      $("#soundBtn").addEventListener("click",()=>{state.sound=!state.sound;$("#soundBtn").classList.toggle("on",state.sound);$("#soundBtn").textContent=state.sound?"🔊":"🔈";notify(state.sound?"Звук включён":"Звук выключен");});
+      $("#shareBtn").addEventListener("click",()=>notify("Для демонстрации экрана нужен WebRTC и сигнальный сервер"));
+      $("#searchBtn").addEventListener("click",()=>{const q=prompt("Поиск в текущем канале:");if(!q?.trim())return;const count=messages().filter(m=>m.text.toLowerCase().includes(q.trim().toLowerCase())).length;notify(count?`Найдено сообщений: ${count}`:"Ничего не найдено");});
+      document.addEventListener("keydown",e=>{if(e.key==="Escape"){$("#modalBackdrop").classList.remove("open");document.body.classList.remove("sidebar-open");}});
+      save();
+    })();
+  </script>
+
+<script type="module" id="aria-auth-script">
+import createKindeClient from "https://esm.sh/@kinde-oss/kinde-auth-pkce-js@4.5.2";
+
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  let kindeInstance = null;
+
+  function showError(message) {
+    const el = $("authError");
+    if (el) el.textContent = message || "";
+  }
+
+  function displayName(user) {
+    if (!user) return "ARIA User";
+    const fullName = [user.given_name, user.family_name].filter(Boolean).join(" ").trim();
+    return fullName || user.name || user.email?.split("@")[0] || "ARIA User";
+  }
+
+  function updateUserUI(user) {
+    window.ariaKindeUser = user || null;
+    const overlay = $("ariaAuth");
+    if (overlay) overlay.classList.toggle("visible", !user);
+
+    if (user) {
+      const name = displayName(user);
+      const dockName = $("myName");
+      const avatar = $("myAvatar");
+      if (dockName) dockName.textContent = name;
+      if (typeof window.ariaSetDisplayName === "function") window.ariaSetDisplayName(name);
+      if (avatar) avatar.textContent = name.trim().split(/\\s+/).slice(0, 2)
+        .map(part => part[0] || "").join("").toUpperCase() || "A";
+      showError("");
+    }
+  }
+
+  async function startAuth(mode) {
+    if (!kindeInstance) {
+      showError("Авторизация ещё загружается. Попробуй через секунду.");
+      return;
+    }
+    showError("");
+    const button = mode === "login" ? $("authLoginTab") : $("authRegisterTab");
+    if (button) button.disabled = true;
+    try {
+      if (mode === "register") await kindeInstance.register();
+      else await kindeInstance.login();
+    } catch (error) {
+      console.error("ARIA Kinde redirect error:", error);
+      showError(error?.message || "Не удалось открыть страницу Kinde.");
+      if (button) button.disabled = false;
+    }
+  }
+
+  function setupTabs() {
+    $("authLoginTab").addEventListener("click", () => {
+      $("authLoginTab").classList.add("active");
+      $("authRegisterTab").classList.remove("active");
+      $("authHeading").textContent = "С возвращением!";
+      $("authSubtitle").textContent = "Войди, чтобы продолжить общение.";
+      startAuth("login");
+    });
+    $("authRegisterTab").addEventListener("click", () => {
+      $("authRegisterTab").classList.add("active");
+      $("authLoginTab").classList.remove("active");
+      $("authHeading").textContent = "Создай свой аккаунт";
+      $("authSubtitle").textContent = "Зарегистрируйся, чтобы открыть ARIA.";
+      startAuth("register");
+    });
+  }
+
+  function setupLogout() {
+    const dock = document.querySelector(".user-actions");
+    if (!dock || $("ariaLogout")) return;
+
+    const button = document.createElement("button");
+    button.id = "ariaLogout";
+    button.className = "icon-btn";
+    button.type = "button";
+    button.title = "Выйти из аккаунта";
+    button.setAttribute("aria-label", "Выйти из аккаунта");
+    button.textContent = "⇥";
+    button.addEventListener("click", async () => {
+      if (!kindeInstance) return;
+      button.disabled = true;
+      try {
+        await kindeInstance.logout();
+      } catch (error) {
+        console.error("ARIA Kinde logout error:", error);
+        showError("Не удалось выйти. Попробуй ещё раз.");
+        button.disabled = false;
+      }
+    });
+    dock.append(button);
+  }
+
+  async function bootKinde() {
+    const mount = $("kindeAuthMount");
+    try {
+      kindeInstance = await createKindeClient({
+        client_id: "1fa432dba01b4091a9345af5fc474bc5",
+        domain: "https://ariar.kinde.com",
+        redirect_uri: "https://aria-wm5h.onrender.com",
+        logout_uri: "https://aria-wm5h.onrender.com",
+        on_redirect_callback: user => {
+          if (user) updateUserUI(user);
+        },
+        on_session_restore_callback: user => {
+          if (user) updateUserUI(user);
+        },
+        on_error_callback: error => {
+          console.error("ARIA Kinde error:", error);
+          showError(error?.message || "Ошибка авторизации Kinde.");
+        }
+      });
+
+      setupTabs();
+      setupLogout();
+
+      const authenticated = await kindeInstance.isAuthenticated();
+      if (authenticated) {
+        const user = await kindeInstance.getUserProfile();
+        updateUserUI(user || kindeInstance.getUser());
+      } else {
+        updateUserUI(null);
+      }
+    } catch (error) {
+      console.error("ARIA Kinde initialization error:", error);
+      if (mount) {
+        mount.innerHTML = '<div class="auth-setup"><strong>Не удалось подключить Kinde</strong><p>Проверь интернет, Client ID, домен и разрешённые Callback/Logout URLs в Kinde Dashboard.</p></div>';
+      }
+      showError(error?.message || "Не удалось инициализировать Kinde.");
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootKinde, { once: true });
+  } else {
+    bootKinde();
+  }
+})();
+</script>
+
+
+<style id="aria-mobile-pro">
+/* ARIA / responsive product pass */
+:root{--accent:#a77bff}
+button{touch-action:manipulation}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid #b69aff;outline-offset:2px}
+@media(min-width:761px){
+  .servers{width:76px;padding:18px 0}
+  .sidebar{width:270px}
+  .main{min-width:0}
+  .msg-content{max-width:min(860px,90%)}
+  .topbar-right .icon-btn{width:38px;height:38px}
+}
+@media(max-width:760px){
+  html,body{height:100%;height:100dvh}
+  body{padding-bottom:env(safe-area-inset-bottom)}
+  .servers{position:fixed;left:0;right:0;bottom:0;top:auto;width:100%;height:calc(58px + env(safe-area-inset-bottom));padding:7px 10px env(safe-area-inset-bottom);display:flex;flex-direction:row;justify-content:flex-start;align-items:center;gap:9px;border-right:0;border-top:1px solid var(--border);overflow-x:auto;overflow-y:hidden;z-index:30}
+  .brand{width:38px;height:38px;flex:none;margin:0;border-radius:13px}
+  .servers .divider{width:1px;height:28px;flex:none}
+  #serverList{display:flex!important;flex-direction:row;gap:8px;align-items:center}
+  .srv-btn{width:38px;height:38px;flex:none}
+  .srv-btn.add{width:38px;height:38px;flex:none}
+  .sidebar{position:fixed;top:0;bottom:calc(58px + env(safe-area-inset-bottom));left:0;width:min(330px,88vw);max-width:88vw;transform:translateX(-110%);z-index:25;border-right:1px solid var(--border);box-shadow:var(--shadow)}
+  body.sidebar-open .sidebar{transform:translateX(0)}
+  .main{width:100%;height:calc(100dvh - 58px - env(safe-area-inset-bottom));padding-bottom:0}
+  .topbar{height:58px;padding:0 10px;gap:5px}
+  .topbar-right{gap:1px}
+  .topbar-right .icon-btn{width:34px;height:36px;font-size:16px}
+  .messages{padding:16px 12px 20px;gap:15px}
+  .msg{gap:8px}
+  .msg .avatar{width:34px;height:34px}
+  .msg-content{max-width:calc(100vw - 78px)}
+  .chat-input-area{padding:8px 9px max(10px,env(safe-area-inset-bottom))}
+  .input-bar{gap:5px;padding:4px 5px 4px 11px;border-radius:16px}
+  .input-bar input{font-size:16px;min-height:42px}
+  .primary-btn{padding:10px 12px;font-size:13px}
+  .welcome{padding:22px 14px;margin: auto 0 12px}
+  .call-dock{max-height:170px;overflow:auto}
+  .modal-backdrop{padding:8px;align-items:flex-end}
+  .modal{width:100%;max-height:min(88dvh,760px);border-radius:20px 20px 12px 12px}
+  .modal-body{padding:16px}
+  .auth-shell{border-radius:22px}
+  #ariaAuth{align-items:center}
+}
+@media(max-width:390px){
+  .topbar-right .icon-btn:nth-child(2){display:none}
+  .topbar-title{max-width:42vw}
+  .auth-form-side{padding:23px 19px}
+  .auth-art{padding:20px}
+}
+.profile-cover{height:126px;border-radius:15px;background:linear-gradient(115deg,#6145b5,#b85e9d 55%,#e99b78);background-size:cover;background-position:center;position:relative;overflow:hidden}
+.profile-cover:after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#090b12a8,transparent 70%)}
+.profile-preview{position:relative;margin-top:-35px;padding:0 14px;display:flex;align-items:end;gap:12px}
+.profile-preview .avatar{width:72px;height:72px;border:4px solid #151d2d;font-size:22px}
+.profile-preview-name{font-size:19px;font-weight:850;padding-bottom:5px}
+.profile-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.profile-form-grid .setting-group{min-width:0}
+.profile-form-grid .full{grid-column:1/-1}
+.profile-form-grid textarea{width:100%;min-height:82px;resize:vertical;padding:11px;border:1px solid var(--border);border-radius:11px;background:var(--bg-input);color:white;font:inherit}
+.feature-btn{border:1px solid var(--border);background:#ffffff08;color:var(--text-main);border-radius:10px;padding:9px 11px;cursor:pointer}
+.feature-btn:hover{border-color:var(--accent);background:#8b72ff18}
+.saved-item{padding:12px;border:1px solid var(--border);border-radius:12px;background:#ffffff06;margin:8px 0;overflow-wrap:anywhere}
+.saved-item small{display:block;color:var(--text-muted);margin-top:5px}
+@media(max-width:420px){.profile-form-grid{grid-template-columns:1fr}.profile-form-grid .full{grid-column:auto}}
+</style>
+<script id="aria-feature-pack">
+(()=>{
+"use strict";
+const $=id=>document.getElementById(id);
+const PROFILE="aria_profile_v2", SAVED="aria_saved_v1", PINS="aria_pins_v1";
+const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k)||"null")??f}catch{return f}};
+const write=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+const profile=()=>read(PROFILE,{handle:"",bio:"",status:"В сети",avatar:"",banner:"",color:"#a77bff",frame:"none"});
+const initials=s=>(s||"A").trim().split(/\s+/).slice(0,2).map(x=>x[0]||"").join("").toUpperCase();
+function notice(t){const n=$("notice");if(!n)return;n.textContent=t;n.classList.add("show");setTimeout(()=>n.classList.remove("show"),2300)}
+function openModal(title,html,bind){$("modalTitle").textContent=title;$("modalBody").innerHTML=html;if(bind)bind($("modalBody"));$("modalBackdrop").classList.add("open")}
+function closeModal(){$("modalBackdrop").classList.remove("open")}
+function applyProfile(){
+ const p=profile(),user=window.ariaKindeUser;
+ const kindeName=user&&([user.given_name,user.family_name].filter(Boolean).join(" ").trim()||user.name||user.email?.split("@")[0]);
+ const display=p.displayName||kindeName||$("myName")?.textContent||"ARIA User";
+ if($("myName"))$("myName").textContent=display;
+ document.documentElement.style.setProperty("--accent",p.color||"#a77bff");
+ if($("myAvatar")){const a=$("myAvatar");a.textContent=p.avatar?"":(p.avatarEmoji||initials(display));a.style.backgroundImage=p.avatar?`url("${p.avatar}")`:"";a.style.backgroundSize="cover";a.style.backgroundPosition="center";a.classList.remove("frame-neon","frame-gold","frame-rose","frame-rainbow");if(p.frame&&p.frame!=="none")a.classList.add("frame-"+p.frame)}
+ const status=$(".user-status");if(status)status.textContent="● "+(p.status||"В сети");
+}
+function profileEditor(){
+ const p=profile(),current=$("myName")?.textContent||"ARIA User";
+ openModal("ТВОЙ ПРОФИЛЬ",`
+ <div class="profile-cover" id="profileCover" style="${p.banner?`background-image:${p.banner.startsWith('linear-gradient(')?p.banner:`url('${p.banner}')`}`:''}"></div>
+ <div class="profile-preview"><div class="avatar" id="profileAvatar" style="${p.avatar?`background-image:url('${p.avatar}');background-size:cover;background-position:center;color:transparent`:''}">${p.avatar?"":initials(current)}</div><div class="profile-preview-name" id="profilePreviewName">${current}</div></div>
+ <div class="modal-body" style="padding:14px 0 0">
+  <div class="profile-form-grid">
+   <div class="setting-group full"><label>Отображаемое имя</label><input id="pfName" maxlength="32" value="${esc(p.displayName||current)}"></div>
+   <div class="setting-group"><label>Уникальный ник</label><input id="pfHandle" maxlength="24" placeholder="например, alex" value="${esc(p.handle||"")}"></div>
+   <div class="setting-group"><label>Статус</label><select id="pfStatus"><option>В сети</option><option>Не беспокоить</option><option>Не в сети</option><option>Отошёл</option></select></div>
+   <div class="setting-group full"><label>О себе</label><textarea id="pfBio" maxlength="190" placeholder="Пара слов о себе...">${esc(p.bio||"")}</textarea></div>
+   <div class="setting-group full"><label>Цвет профиля</label><input id="pfColor" type="color" value="${p.color||"#a77bff"}" style="height:42px;padding:4px"></div>
+   <div class="setting-group full"><label>Рамка аватара</label><select id="pfFrame">
+    <option value="none">Без рамки</option><option value="neon">Неоновая</option><option value="gold">Золотая</option><option value="rose">Розовая</option><option value="rainbow">Радужная</option>
+   </select></div>
+   <div class="setting-group full"><label>Галерея аватаров</label><div class="cosmetic-gallery" id="avatarGallery">
+    <button type="button" class="cosmetic-choice" data-avatar="🌌"><span class="cosmetic-swatch" style="background:linear-gradient(135deg,#312e81,#c084fc)">🌌</span>Космос</button>
+    <button type="button" class="cosmetic-choice" data-avatar="🌸"><span class="cosmetic-swatch" style="background:linear-gradient(135deg,#be185d,#f9a8d4)">🌸</span>Цветы</button>
+    <button type="button" class="cosmetic-choice" data-avatar="⚡"><span class="cosmetic-swatch" style="background:linear-gradient(135deg,#1d4ed8,#67e8f9)">⚡</span>Энергия</button>
+    <button type="button" class="cosmetic-choice" data-avatar="🐈"><span class="cosmetic-swatch" style="background:linear-gradient(135deg,#475569,#cbd5e1)">🐈</span>Кот</button>
+   </div><small style="color:var(--text-muted)">Или выбери своё фото ниже — откроется галерея/файлы устройства.</small></div>
+   <div class="setting-group full"><label>Готовые баннеры</label><div class="cosmetic-gallery" id="bannerGallery">
+    <button type="button" class="cosmetic-choice" data-banner="linear-gradient(115deg,#6145b5,#b85e9d,#e99b78)">Фиолетовый</button>
+    <button type="button" class="cosmetic-choice" data-banner="linear-gradient(115deg,#075985,#2563eb,#67e8f9)">Океан</button>
+    <button type="button" class="cosmetic-choice" data-banner="linear-gradient(115deg,#831843,#be123c,#fda4af)">Закат</button>
+    <button type="button" class="cosmetic-choice" data-banner="linear-gradient(115deg,#14532d,#16a34a,#bef264)">Природа</button>
+   </div></div>
+   <div class="setting-group"><label>Аватар (изображение)</label><input id="pfAvatarFile" type="file" accept="image/*"></div>
+   <div class="setting-group"><label>Баннер профиля</label><input id="pfBannerFile" type="file" accept="image/*"></div>
+   <div class="setting-group full"><label>Или ссылка на аватар</label><input id="pfAvatarUrl" type="url" placeholder="https://..." value=""></div>
+   <div class="setting-group full"><label>Или ссылка на баннер</label><input id="pfBannerUrl" type="url" placeholder="https://..." value=""></div>
+  </div>
+  <button class="primary-btn" id="pfSave" style="width:100%;margin-top:14px">Сохранить профиль</button>
+  <p style="font-size:11px;color:var(--text-muted);line-height:1.5">Настройки профиля сохраняются только в этом браузере. Не загружай личные фотографии, если не хочешь хранить их на этом устройстве.</p>
+ </div>`,body=>{
+  body.querySelector("#pfStatus").value=p.status||"В сети";
+  body.querySelector("#pfFrame").value=p.frame||"none";
+  body.querySelectorAll("[data-avatar]").forEach(b=>b.onclick=()=>{body.dataset.galleryAvatar=b.dataset.avatar;body.dataset.avatar="";body.querySelector("#profileAvatar").textContent=b.dataset.avatar;body.querySelector("#profileAvatar").style.backgroundImage="";});
+  body.querySelectorAll("[data-banner]").forEach(b=>b.onclick=()=>{body.dataset.galleryBanner=b.dataset.banner;body.dataset.banner="";body.querySelector("#profileCover").style.backgroundImage=b.dataset.banner;});
+  body.querySelector("#pfName").addEventListener("input",e=>body.querySelector("#profilePreviewName").textContent=e.target.value||"Твоё имя");
+  const fileToData=file=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)});
+  body.querySelector("#pfAvatarFile").onchange=async e=>{if(e.target.files[0]){const url=await fileToData(e.target.files[0]);body.dataset.avatar=url;const av=body.querySelector("#profileAvatar");av.style.backgroundImage=`url("${url}")`;av.textContent=""}};
+  body.querySelector("#pfBannerFile").onchange=async e=>{if(e.target.files[0]){const url=await fileToData(e.target.files[0]);body.dataset.banner=url;body.querySelector("#profileCover").style.backgroundImage=`url("${url}")`}};
+  body.querySelector("#pfSave").onclick=()=>{
+   const next={...profile(),displayName:body.querySelector("#pfName").value.trim().slice(0,32)||current,handle:body.querySelector("#pfHandle").value.trim().replace(/^@/,"").slice(0,24),status:body.querySelector("#pfStatus").value,bio:body.querySelector("#pfBio").value.trim().slice(0,190),color:body.querySelector("#pfColor").value,frame:body.querySelector("#pfFrame").value};
+   const avUrl=body.querySelector("#pfAvatarUrl").value.trim(),bnUrl=body.querySelector("#pfBannerUrl").value.trim();
+   if(avUrl)next.avatar=avUrl;if(bnUrl)next.banner=bnUrl;if(body.dataset.avatar)next.avatar=body.dataset.avatar;if(body.dataset.banner)next.banner=body.dataset.banner;if(body.dataset.galleryAvatar){next.avatar="";next.avatarEmoji=body.dataset.galleryAvatar;}if(body.dataset.galleryBanner){next.banner=body.dataset.galleryBanner;}
+   write(PROFILE,next);
+   try{const st=JSON.parse(localStorage.getItem("aria-messenger-v2")||"{}");st.name=next.displayName;localStorage.setItem("aria-messenger-v2",JSON.stringify(st));}catch{}
+   applyProfile();closeModal();notice("Профиль обновлён");
+  };
+ });
+}
+function esc(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function getAllMessages(){const st=read("aria-messenger-v2",{}),out=[];Object.entries(st.messages||{}).forEach(([key,arr])=>(arr||[]).forEach(m=>out.push({...m,channelKey:key})));return out}
+function savedPanel(){
+ const ids=read(SAVED,[]),all=getAllMessages(),items=ids.map(id=>all.find(m=>m.id===id)).filter(Boolean);
+ openModal("СОХРАНЁННОЕ",items.length?items.map(m=>`<div class="saved-item"><b>${esc(m.author)}</b><div>${esc(m.text)}</div><small>${esc(m.time||"")} · ${esc(m.channelKey)}</small><button class="feature-btn" data-unsave="${esc(m.id)}" style="margin-top:8px">Убрать из сохранённого</button></div>`).join(""):'<div class="empty-state">Здесь будут важные сообщения.<br>Нажми «Сохранить» под сообщением.</div>',body=>body.querySelectorAll("[data-unsave]").forEach(b=>b.onclick=()=>{write(SAVED,read(SAVED,[]).filter(x=>x!==b.dataset.unsave));savedPanel()}));
+}
+function pinnedPanel(){
+ const ids=read(PINS,[]),all=getAllMessages(),items=ids.map(id=>all.find(m=>m.id===id)).filter(Boolean);
+ openModal("ЗАКРЕПЛЁННЫЕ",items.length?items.map(m=>`<div class="saved-item"><b>${esc(m.author)}</b><div>${esc(m.text)}</div><small>${esc(m.time||"")} · ${esc(m.channelKey)}</small><button class="feature-btn" data-unpin="${esc(m.id)}" style="margin-top:8px">Открепить</button></div>`).join(""):'<div class="empty-state">Пока нет закреплённых сообщений.</div>',body=>body.querySelectorAll("[data-unpin]").forEach(b=>b.onclick=()=>{write(PINS,read(PINS,[]).filter(x=>x!==b.dataset.unpin));pinnedPanel()}));
+}
+function searchAll(){
+ const q=prompt("Поиск по всем сообщениям:");if(!q?.trim())return;
+ const found=getAllMessages().filter(m=>(m.text||"").toLowerCase().includes(q.trim().toLowerCase()));
+ openModal("РЕЗУЛЬТАТЫ ПОИСКА",found.length?found.slice(-50).reverse().map(m=>`<div class="saved-item"><b>${esc(m.author)} · ${esc(m.time||"")}</b><div>${esc(m.text)}</div><small>${esc(m.channelKey)}</small></div>`).join(""):`<div class="empty-state">По запросу «${esc(q)}» ничего не найдено.</div>`);
+}
+function addMessageTools(){
+ document.querySelectorAll("#messages .msg").forEach(article=>{
+  if(article.dataset.ariaTools)return;article.dataset.ariaTools="1";
+  const author=article.querySelector(".msg-author")?.textContent||"",txt=article.querySelector(".msg-text")?.textContent||"",tm=article.querySelector(".msg-time")?.textContent||"";
+  const all=getAllMessages(),m=all.find(x=>x.author===author&&x.text===txt&&x.time===tm);
+  if(!m)return;
+  const actions=article.querySelector(".msg-actions")||article.querySelector(".msg-content");
+  const add=(label,fn)=>{const b=document.createElement("button");b.className="pill-btn";b.textContent=label;b.onclick=fn;actions.append(b)};
+  add("☆ Сохранить",()=>{const a=read(SAVED,[]);if(!a.includes(m.id)){a.push(m.id);write(SAVED,a)}notice("Добавлено в сохранённое")});
+  add("📌 Закрепить",()=>{const a=read(PINS,[]);if(!a.includes(m.id)){a.push(m.id);write(PINS,a)}notice("Сообщение закреплено (локально)")});
+  add("↳ Ветка",()=>{const reply=prompt("Ответ в ветке:");if(reply?.trim()){const input=$("messageInput");input.value=`↳ ${author}: ${txt.slice(0,70)}\\n${reply.trim()}`;$("messageForm").requestSubmit()}});
+ });
+}
+function addFeatureButtons(){
+ const right=document.querySelector(".topbar-right");if(!right||$("ariaSavedBtn"))return;
+ const make=(id,label,title,fn)=>{const b=document.createElement("button");b.id=id;b.className="icon-btn";b.title=title;b.setAttribute("aria-label",title);b.textContent=label;b.onclick=fn;right.insertBefore(b,right.firstChild)};
+ make("ariaSavedBtn","☆","Сохранённые сообщения",savedPanel);
+ make("ariaSearchBtn","⌕","Поиск по всем сообщениям",searchAll);
+ const inputArea=document.querySelector(".input-bar");
+ if(inputArea&&!$("ariaPollBtn")){const b=document.createElement("button");b.id="ariaPollBtn";b.className="feature-btn";b.type="button";b.title="Создать опрос";b.textContent="▤";b.onclick=()=>{const q=prompt("Вопрос опроса:");if(!q?.trim())return;const opts=prompt("Варианты через запятую (например: Да, Нет, Позже)");if(!opts?.trim())return;const list=opts.split(",").map(x=>x.trim()).filter(Boolean).slice(0,6);if(list.length<2){notice("Нужно минимум два варианта");return}const text=`📊 ОПРОС: ${q.trim()}\\n${list.map((x,i)=>`${i+1}. ${x}`).join("\\n")}\\nГолосование в демо-режиме — напиши номер варианта.`;$("messageInput").value=text;$("messageForm").requestSubmit()};inputArea.insertBefore(b,inputArea.firstChild)}
+}
+function commandPalette(){
+ const val=prompt("Быстрые действия:\\n1 — профиль\\n2 — сохранённое\\n3 — поиск\\n4 — создать опрос\\n5 — настройки");
+ if(val==="1")profileEditor();else if(val==="2")savedPanel();else if(val==="3")searchAll();else if(val==="4")$("ariaPollBtn")?.click();else if(val==="5")$("settingsBtn")?.click();
+}
+function addProfileButton(){
+ const dock=document.querySelector(".user-actions");if(dock&&!$("ariaProfileFull")){const b=document.createElement("button");b.id="ariaProfileFull";b.className="icon-btn";b.title="Полный профиль";b.textContent="✦";b.onclick=profileEditor;dock.insertBefore(b,dock.firstChild)}
+}
+function addKeyboard(){document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();commandPalette()}})}
+function init(){
+ applyProfile();addFeatureButtons();addProfileButton();addMessageTools();addKeyboard();
+ const root=$("messages");if(root)new MutationObserver(()=>addMessageTools()).observe(root,{childList:true,subtree:true});
+ const logout=$("ariaLogout");if(logout){const old=logout.onclick;logout.onclick=()=>{old?.();setTimeout(()=>{const a=$("ariaAuth");if(a)a.classList.add("visible")},0)}}
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(init,250));else setTimeout(init,250);
+})();
+</script>
+
+</body>
+</html>
