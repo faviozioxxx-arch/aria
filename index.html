@@ -306,6 +306,33 @@ button, input, select, textarea { touch-action:manipulation; }
 .cosmetic-swatch { width:38px;height:38px;margin:0 auto 6px;border-radius:50%;display:grid;place-items:center;font-size:19px; }
 </style>
 
+
+<style id="aria-community-plus-css">
+/* Community customization, server banners and polished interaction states */
+.server-banner{
+  display:none;flex:none;height:112px;margin:10px 10px 2px;border-radius:14px;
+  background:linear-gradient(125deg,#6548b8,#b65caa,#e88a80);background-size:cover;background-position:center;
+  position:relative;overflow:hidden;border:1px solid #ffffff18;box-shadow:0 10px 28px #0003
+}
+.server-banner.visible{display:flex;align-items:flex-end;padding:12px}
+.server-banner:after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#080b15d9,transparent 85%)}
+.server-banner strong{position:relative;z-index:1;font-size:15px;text-shadow:0 2px 10px #000}
+.aria-appearance-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.aria-preset{border:1px solid var(--border);border-radius:12px;padding:12px;text-align:left;background:#ffffff08;color:var(--text-main);cursor:pointer}
+.aria-preset:hover,.aria-preset[aria-pressed="true"]{border-color:var(--accent);background:#8b72ff20}
+.aria-preset i{display:block;height:30px;border-radius:8px;margin-bottom:8px}
+.aria-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.aria-toggle input{accent-color:var(--accent);width:17px;height:17px}
+body.aria-compact .msg{gap:7px}
+body.aria-compact .messages{gap:9px}
+body.aria-compact .msg .avatar{width:30px;height:30px}
+body.aria-compact .msg-text{margin-top:1px}
+.aria-server-tools{display:flex;gap:6px;align-items:center}
+.aria-banner-edit{font-size:11px;border:1px solid #ffffff20;background:#080b1570;color:white;padding:5px 8px;border-radius:8px;cursor:pointer;position:relative;z-index:2}
+.aria-banner-edit:hover{background:#8b72ff}
+@media(max-width:760px){.server-banner{height:88px;margin:8px}.aria-appearance-grid{grid-template-columns:1fr 1fr}}
+</style>
+
 </head>
 <body>
 
@@ -518,8 +545,15 @@ button, input, select, textarea { touch-action:manipulation; }
     })();
   </script>
 
+<script type="importmap">
+{
+  "imports": {
+    "@kinde-oss/kinde-auth-pkce-js": "https://esm.sh/@kinde-oss/kinde-auth-pkce-js@4.5.2"
+  }
+}
+</script>
 <script type="module" id="aria-auth-script">
-import createKindeClient from "https://esm.sh/@kinde-oss/kinde-auth-pkce-js@4.5.2";
+import createKindeClient from "@kinde-oss/kinde-auth-pkce-js";
 
 (() => {
   "use strict";
@@ -541,16 +575,14 @@ import createKindeClient from "https://esm.sh/@kinde-oss/kinde-auth-pkce-js@4.5.
     window.ariaKindeUser = user || null;
     const overlay = $("ariaAuth");
     if (overlay) overlay.classList.toggle("visible", !user);
-
     if (user) {
       const name = displayName(user);
-      const dockName = $("myName");
-      const avatar = $("myAvatar");
-      if (dockName) dockName.textContent = name;
+      if ($("myName")) $("myName").textContent = name;
       if (typeof window.ariaSetDisplayName === "function") window.ariaSetDisplayName(name);
-      if (avatar) avatar.textContent = name.trim().split(/\\s+/).slice(0, 2)
-        .map(part => part[0] || "").join("").toUpperCase() || "A";
+      if ($("myAvatar")) $("myAvatar").textContent =
+        name.trim().split(/\s+/).slice(0, 2).map(part => part[0] || "").join("").toUpperCase() || "A";
       showError("");
+      window.dispatchEvent(new CustomEvent("aria:authenticated", { detail: user }));
     }
   }
 
@@ -573,14 +605,14 @@ import createKindeClient from "https://esm.sh/@kinde-oss/kinde-auth-pkce-js@4.5.
   }
 
   function setupTabs() {
-    $("authLoginTab").addEventListener("click", () => {
+    $("authLoginTab")?.addEventListener("click", () => {
       $("authLoginTab").classList.add("active");
       $("authRegisterTab").classList.remove("active");
       $("authHeading").textContent = "С возвращением!";
       $("authSubtitle").textContent = "Войди, чтобы продолжить общение.";
       startAuth("login");
     });
-    $("authRegisterTab").addEventListener("click", () => {
+    $("authRegisterTab")?.addEventListener("click", () => {
       $("authRegisterTab").classList.add("active");
       $("authLoginTab").classList.remove("active");
       $("authHeading").textContent = "Создай свой аккаунт";
@@ -592,7 +624,6 @@ import createKindeClient from "https://esm.sh/@kinde-oss/kinde-auth-pkce-js@4.5.
   function setupLogout() {
     const dock = document.querySelector(".user-actions");
     if (!dock || $("ariaLogout")) return;
-
     const button = document.createElement("button");
     button.id = "ariaLogout";
     button.className = "icon-btn";
@@ -618,25 +649,13 @@ import createKindeClient from "https://esm.sh/@kinde-oss/kinde-auth-pkce-js@4.5.
     const mount = $("kindeAuthMount");
     try {
       kindeInstance = await createKindeClient({
-        client_id: "1fa432dba01b4091a9345af5fc474bc5",
-        domain: "https://ariar.kinde.com",
-        redirect_uri: "https://aria-wm5h.onrender.com",
-        logout_uri: "https://aria-wm5h.onrender.com",
-        on_redirect_callback: user => {
-          if (user) updateUserUI(user);
-        },
-        on_session_restore_callback: user => {
-          if (user) updateUserUI(user);
-        },
-        on_error_callback: error => {
-          console.error("ARIA Kinde error:", error);
-          showError(error?.message || "Ошибка авторизации Kinde.");
-        }
+        client_id: "f7e21ea133684070b38d7d865cb74098",
+        domain: "https://arias.kinde.com",
+        redirect_uri: window.location.origin
       });
 
       setupTabs();
       setupLogout();
-
       const authenticated = await kindeInstance.isAuthenticated();
       if (authenticated) {
         const user = await kindeInstance.getUserProfile();
@@ -647,7 +666,7 @@ import createKindeClient from "https://esm.sh/@kinde-oss/kinde-auth-pkce-js@4.5.
     } catch (error) {
       console.error("ARIA Kinde initialization error:", error);
       if (mount) {
-        mount.innerHTML = '<div class="auth-setup"><strong>Не удалось подключить Kinde</strong><p>Проверь интернет, Client ID, домен и разрешённые Callback/Logout URLs в Kinde Dashboard.</p></div>';
+        mount.innerHTML = '<div class="auth-setup"><strong>Не удалось подключить Kinde</strong><p>Проверь Client ID, домен и разрешённый Callback URL в Kinde Dashboard. В Callback URLs добавь адрес сайта, с которого открывается ARIA.</p></div>';
       }
       showError(error?.message || "Не удалось инициализировать Kinde.");
     }
@@ -850,6 +869,193 @@ function init(){
  const logout=$("ariaLogout");if(logout){const old=logout.onclick;logout.onclick=()=>{old?.();setTimeout(()=>{const a=$("ariaAuth");if(a)a.classList.add("visible")},0)}}
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>setTimeout(init,250));else setTimeout(init,250);
+})();
+</script>
+
+
+<script id="aria-community-plus">
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const STORE = "aria_appearance_v1";
+  const read = () => { try { return JSON.parse(localStorage.getItem(STORE) || "{}"); } catch { return {}; } };
+  const write = value => { try { localStorage.setItem(STORE, JSON.stringify(value)); } catch { toast("Не удалось сохранить оформление"); } };
+  const toast = text => { const n=$("notice"); if(!n)return; n.textContent=text; n.classList.add("show"); setTimeout(()=>n.classList.remove("show"),2200); };
+  const safeUrl = value => {
+    try { const u = new URL(value); return ["https:","http:"].includes(u.protocol) ? u.href : ""; } catch { return ""; }
+  };
+  const appearance = read();
+
+  function applyAppearance() {
+    const a = read();
+    if (a.accent) document.documentElement.style.setProperty("--accent", a.accent);
+    document.body.classList.toggle("aria-compact", !!a.compact);
+    document.body.classList.toggle("theme-midnight", a.theme === "midnight");
+    if (a.wallpaper) document.querySelector(".main")?.style.setProperty("background-image",
+      `linear-gradient(120deg,#101522e8,#101522ed),url("${a.wallpaper}")`);
+  }
+
+  function ensureServerBanner() {
+    const header = document.querySelector(".srv-header");
+    if (!header || $("ariaServerBanner")) return;
+    const banner = document.createElement("div");
+    banner.id = "ariaServerBanner";
+    banner.className = "server-banner";
+    const title = document.createElement("strong");
+    title.id = "ariaServerBannerTitle";
+    banner.append(title);
+    header.insertAdjacentElement("afterend", banner);
+    const tools = document.createElement("div");
+    tools.className = "aria-server-tools";
+    const edit = document.createElement("button");
+    edit.className = "icon-btn";
+    edit.type = "button";
+    edit.title = "Настроить баннер сервера";
+    edit.textContent = "▧";
+    edit.addEventListener("click", editServerBanner);
+    header.append(tools);
+    tools.append(edit);
+    updateServerBanner();
+  }
+
+  function activeServerData() {
+    try {
+      const st = JSON.parse(localStorage.getItem("aria-messenger-v2") || "{}");
+      return st.servers?.find(s => s.id === st.activeServerId) || null;
+    } catch { return null; }
+  }
+
+  function updateServerBanner() {
+    const banner = $("ariaServerBanner");
+    const server = activeServerData();
+    if (!banner || !server) return;
+    const title = $("ariaServerBannerTitle");
+    title.textContent = server.bannerTitle || server.name || "Сообщество";
+    if (server.banner) {
+      banner.style.backgroundImage = `linear-gradient(0deg,#080b15b8,transparent),url("${server.banner}")`;
+    } else {
+      banner.style.backgroundImage = "";
+    }
+    banner.classList.toggle("visible", !!server.banner || !!server.bannerTitle);
+  }
+
+  function editServerBanner() {
+    const server = activeServerData();
+    if (!server) return;
+    const title = prompt("Название на баннере:", server.bannerTitle || server.name || "");
+    if (title === null) return;
+    const url = prompt("Ссылка на изображение баннера (https://) или оставь пустым:", server.banner || "");
+    if (url === null) return;
+    const clean = url.trim();
+    if (clean && !safeUrl(clean)) { toast("Нужна корректная http/https ссылка"); return; }
+    server.bannerTitle = title.trim().slice(0,48);
+    server.banner = clean ? safeUrl(clean) : "";
+    try {
+      const st = JSON.parse(localStorage.getItem("aria-messenger-v2") || "{}");
+      const i = st.servers?.findIndex(s => s.id === st.activeServerId);
+      if (i >= 0) { st.servers[i] = server; localStorage.setItem("aria-messenger-v2", JSON.stringify(st)); }
+    } catch {}
+    updateServerBanner();
+    toast("Баннер сервера обновлён");
+  }
+
+  function appearanceModal() {
+    const a = read();
+    const presets = [
+      ["violet","Фиолетовый","#a77bff","linear-gradient(120deg,#32215c,#111827)"],
+      ["blue","Океан","#55a7ff","linear-gradient(120deg,#102f52,#101827)"],
+      ["rose","Розовый","#f078b8","linear-gradient(120deg,#4b1e42,#171323)"],
+      ["mint","Мята","#48d6b0","linear-gradient(120deg,#12483f,#101c25)"]
+    ];
+    const html = `
+      <div class="setting-group"><label>Готовые стили</label><div class="aria-appearance-grid">
+      ${presets.map(p=>`<button type="button" class="aria-preset" data-preset="${p[0]}" aria-pressed="${a.preset===p[0]}"><i style="background:${p[3]}"></i>${p[1]}</button>`).join("")}
+      </div></div>
+      <div class="setting-group"><label for="ariaAccent">Свой акцентный цвет</label><input id="ariaAccent" type="color" value="${a.accent||"#a77bff"}" style="height:44px;padding:4px"></div>
+      <div class="setting-group"><label for="ariaWallpaper">Фоновая картинка чата (ссылка)</label><input id="ariaWallpaper" type="url" placeholder="https://..." value="${a.wallpaper||""}"></div>
+      <label class="aria-toggle">Компактный режим сообщений <input id="ariaCompact" type="checkbox" ${a.compact?"checked":""}></label>
+      <label class="aria-toggle">Тема «Полночь» <input id="ariaMidnight" type="checkbox" ${a.theme==="midnight"?"checked":""}></label>
+      <button class="primary-btn" id="ariaSaveAppearance" style="width:100%">Применить оформление</button>
+      <p style="font-size:11px;color:var(--text-muted);line-height:1.5">Оформление сохраняется в этом браузере. Ссылка на фон должна начинаться с http:// или https://.</p>`;
+    const title = $("modalTitle"), body = $("modalBody"), back = $("modalBackdrop");
+    if (!title || !body || !back) return;
+    title.textContent = "КАСТОМИЗАЦИЯ ARIA";
+    body.innerHTML = html;
+    body.querySelectorAll("[data-preset]").forEach(btn => btn.addEventListener("click", () => {
+      const p = presets.find(x=>x[0]===btn.dataset.preset);
+      body.querySelector("#ariaAccent").value = p[2];
+      body.querySelectorAll("[data-preset]").forEach(x=>x.setAttribute("aria-pressed", String(x===btn)));
+      body.dataset.preset = p[0];
+    }));
+    body.querySelector("#ariaSaveAppearance").addEventListener("click", () => {
+      const wallpaperValue = body.querySelector("#ariaWallpaper").value.trim();
+      const wallpaper = wallpaperValue ? safeUrl(wallpaperValue) : "";
+      if (wallpaperValue && !wallpaper) { toast("Проверь ссылку на фон"); return; }
+      const chosen = presets.find(x=>x[0]===body.dataset.preset);
+      write({
+        accent: body.querySelector("#ariaAccent").value,
+        wallpaper,
+        compact: body.querySelector("#ariaCompact").checked,
+        theme: body.querySelector("#ariaMidnight").checked ? "midnight" : "default",
+        preset: chosen?.[0] || a.preset || ""
+      });
+      applyAppearance();
+      back.classList.remove("open");
+      toast("Оформление сохранено");
+    });
+    back.classList.add("open");
+  }
+
+  function addAppearanceButton() {
+    const dock = document.querySelector(".user-actions");
+    if (dock && !$("ariaAppearanceBtn")) {
+      const b = document.createElement("button");
+      b.id = "ariaAppearanceBtn"; b.className = "icon-btn"; b.type = "button";
+      b.title = "Кастомизация"; b.textContent = "✧"; b.addEventListener("click", appearanceModal);
+      dock.insertBefore(b, dock.firstChild);
+    }
+  }
+
+  function addQuickActions() {
+    const input = document.querySelector(".input-bar");
+    if (input && !$("ariaEmojiBtn")) {
+      const b = document.createElement("button");
+      b.id="ariaEmojiBtn"; b.type="button"; b.className="feature-btn"; b.title="Добавить эмодзи"; b.textContent="☺";
+      b.addEventListener("click", () => {
+        const choices=["😀","😂","🥹","😍","🔥","✨","💜","👍","🎉","👀","😭","❤️"];
+        const pick=prompt("Выбери эмодзи:\n"+choices.join("  "));
+        if (pick && choices.includes(pick)) {
+          const field=$("messageInput"); field.value += pick; field.focus();
+        }
+      });
+      input.insertBefore(b,input.firstChild);
+    }
+  }
+
+  function hookServerSwitches() {
+    const root=$("serverList");
+    if (root && !root.dataset.bannerObserver) {
+      root.dataset.bannerObserver="1";
+      root.addEventListener("click",()=>setTimeout(updateServerBanner,30));
+    }
+    const channels=$("channelsList");
+    if (channels && !channels.dataset.bannerObserver) {
+      channels.dataset.bannerObserver="1";
+      new MutationObserver(()=>setTimeout(updateServerBanner,0)).observe(channels,{childList:true,subtree:true});
+    }
+  }
+
+  function init() {
+    applyAppearance();
+    ensureServerBanner();
+    addAppearanceButton();
+    addQuickActions();
+    hookServerSwitches();
+    updateServerBanner();
+    window.addEventListener("aria:authenticated", updateServerBanner);
+  }
+  if (document.readyState==="loading") document.addEventListener("DOMContentLoaded",()=>setTimeout(init,350),{once:true});
+  else setTimeout(init,350);
 })();
 </script>
 
